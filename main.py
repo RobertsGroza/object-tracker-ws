@@ -3,6 +3,7 @@ import websockets
 import cv2
 import json
 import base64
+import time
 
 # Server data
 PORT = 7890
@@ -10,14 +11,13 @@ print("Server listening on Port " + str(PORT))
 
 # A set of connected ws clients
 connected = set()
+video = "riteni"
+
 
 async def echo(websocket):
     # Store a copy of the connected client
     print("A client just connected")
     connected.add(websocket)
-
-    # TODO: Probably we will need some variable here, that says if video is playing
-    # TODO: And if the variable is true, it just loops through frames
 
     # Handle incoming messages
     try:
@@ -26,34 +26,55 @@ async def echo(websocket):
             await websocket.send("Message received: " + message)
 
             if message == "play":
-                # TODO: Send video frame by frame with object
-                # TODO: At first send just first frame
-                print("PLAY")
-                await websocket.send("Message received: " + message)
-                cap = cv2.VideoCapture("./riteni.mp4")
+                await websocket.send("Streaming started")
+                cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video}.mp4')
+                position_file = open(f'../object-tracker-shared/outputs/{video}.txt')
+
+                prev_frame_time = 0
+                frame_count = 0
+                fps_sum = 0
+                stream_width = 640
+                stream_height = 360
                 success, img = cap.read()
-                # TODO: Pamēģināt dabūt normālu performanci - pagaidām ir diezgan shitty PFS
-                # await websocket.send(json.dumps({"frame": img.tolist()}))
-                # await websocket.send(json.dumps({"frame": "".join(map(str, img.tolist()))}))
+
+                video_summary = json.loads(position_file.readline().strip())
+                await websocket.send(json.dumps({"type": "video_summary", "content": video_summary}))
+
                 while success:
-                    success, buffer = cv2.imencode('.png', img)  # TODO: Maybe redundant step?
-                    await websocket.send(json.dumps({"frame": base64.b64encode(buffer).decode("utf-8")}))
+                    new_frame_time = time.time()
+                    frame_count += 1
+
+                    # Get coefficients for object position & width adjustments to stream size
+                    width_scale_coefficient = stream_width / img.shape[1]
+                    height_scale_coefficient = stream_height / img.shape[0]
+
+                    # Process frame
+                    resized = cv2.resize(img, (stream_width, stream_height))
+                    success, buffer = cv2.imencode('.jpg', resized, [int(cv2.IMWRITE_JPEG_QUALITY), 30])
+
+                    # Process & adjust object information
+                    object_positions = json.loads(position_file.readline().strip())
+                    for object_position in object_positions:
+                        object_position["x"] = object_position["x"] * width_scale_coefficient
+                        object_position["y"] = object_position["y"] * height_scale_coefficient
+                        object_position["width"] = object_position["width"] * width_scale_coefficient
+                        object_position["height"] = object_position["height"] * height_scale_coefficient
+
+                    # Send message
+                    await websocket.send(json.dumps({
+                        "frame": base64.b64encode(buffer).decode("utf-8"),
+                        "positions": object_positions
+                    }))
+
                     success, img = cap.read()
-            elif message == "stop":
-                # TODO: Stop sending video frames
-                print("STOP")
-                await websocket.send("Message received: " + message)
-            elif message == "setVideo":
-                # TODO: Change video
-                # TODO: Maybe add video in message payload. Create message { type: string, payload: object }
-                print("SET_VIDEO")
-                await websocket.send("Message received: " + message)
+                    fps = 1 / (new_frame_time - prev_frame_time)
+                    prev_frame_time = new_frame_time
+                    fps_sum += fps
+
+                print("AVERAGE FPS: " + str(fps_sum / frame_count))
             else:
                 await websocket.send("Unknown message!")
 
-            # # Send a response to sender
-            # for conn in connected:
-            #     await conn.send("Someone said: " + message)
     # Handle disconnecting clients
     finally:
         print("A client just disconnected")
