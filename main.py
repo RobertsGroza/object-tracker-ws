@@ -23,10 +23,8 @@ async def echo(websocket):
     try:
         async for message in websocket:
             print("Received message from client: " + message)
-            await websocket.send("Message received: " + message)
 
             if message == "play":
-                await websocket.send("Streaming started")
                 cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video}.mp4')
                 position_file = open(f'../object-tracker-shared/outputs/{video}.txt')
 
@@ -62,6 +60,7 @@ async def echo(websocket):
 
                     # Send message
                     await websocket.send(json.dumps({
+                        "type": "video_frame",
                         "frame": base64.b64encode(buffer).decode("utf-8"),
                         "positions": object_positions
                     }))
@@ -70,7 +69,7 @@ async def echo(websocket):
                     fps = 1 / (new_frame_time - prev_frame_time)
                     prev_frame_time = new_frame_time
                     fps_sum += fps
-
+                await websocket.send(json.dumps({"type": "video_end"}))
                 print("AVERAGE FPS: " + str(fps_sum / frame_count))
             else:
                 await websocket.send("Unknown message!")
