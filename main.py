@@ -4,6 +4,7 @@ import cv2
 import json
 import base64
 import time
+import os
 
 # Server data
 PORT = 7890
@@ -11,8 +12,8 @@ print("Server listening on Port " + str(PORT))
 
 # A set of connected ws clients
 connected = set()
+videos = os.listdir("../object-tracker-shared/videos")
 video = "riteni"
-
 
 async def echo(websocket):
     # Store a copy of the connected client
@@ -23,6 +24,9 @@ async def echo(websocket):
     try:
         async for message in websocket:
             print("Received message from client: " + message)
+
+            if message == "get_videos":
+                await websocket.send(json.dumps({"type": "video_list", "videos": videos}))
 
             if message == "play":
                 cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video}.mp4')
