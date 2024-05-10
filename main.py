@@ -3,7 +3,6 @@ import websockets
 import cv2
 import json
 import base64
-import time
 import os
 
 # Server data
@@ -12,7 +11,7 @@ print("Server listening on Port " + str(PORT))
 
 # A set of connected ws clients
 connected = set()
-videos = list(map(lambda el: el.split(".")[0], os.listdir("../object-tracker-shared/videos")))
+videos = list(map(lambda el: el.split(".")[0], os.listdir("./videos")))
 
 
 class VideoReader:
@@ -28,8 +27,8 @@ class VideoReader:
 
     def start(self, video_name):
         self.isBuffering = True
-        self.cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video_name}.mp4')
-        self.position_file = open(f'../object-tracker-shared/outputs/{video_name}.txt', "r")
+        self.cap = cv2.VideoCapture(f'./videos/{video_name}.mp4')
+        self.position_file = open(f'./outputs/{video_name}.txt', "r")
         self.position_file.readline()  # Skip summary
 
     def stop(self):
@@ -112,6 +111,6 @@ async def echo(websocket):
         connected.remove(websocket)
 
 # Start the server
-start_server = websockets.serve(echo, "localhost", PORT)
+start_server = websockets.serve(echo, "0.0.0.0", PORT)
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
