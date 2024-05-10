@@ -91,7 +91,7 @@ async def echo(websocket):
 
             elif parsed_message["type"] == "get_summary":
                 video_name = parsed_message["content"]
-                position_file = open(f'../object-tracker-shared/outputs/{video_name}.txt', "r")
+                position_file = open(f'./outputs/{video_name}.txt', "r")
                 video_summary = json.loads(position_file.readline().strip())
                 await websocket.send(json.dumps({"type": "video_summary", "content": video_summary}))
 
