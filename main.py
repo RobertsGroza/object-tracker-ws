@@ -30,19 +30,15 @@ class VideoReader:
         self.isBuffering = True
         self.cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video_name}.mp4')
         self.position_file = open(f'../object-tracker-shared/outputs/{video_name}.txt', "r")
+        self.position_file.readline()  # Skip summary
 
     def stop(self):
         self.isBuffering = False
 
-    async def get_first_frame(self):
-        test = self.position_file.readline().strip()
-        video_summary = json.loads(test)
-        await self.websocket.send(json.dumps({"type": "video_summary", "content": video_summary}))
-
     async def get_next_frame(self):
         success, img = self.cap.read()
 
-        if not success:
+        if not success or not self.isBuffering:
             await self.dispose()
             return
 
@@ -92,10 +88,16 @@ async def echo(websocket):
 
             if parsed_message["type"] == "stop_buffer":
                 reader.stop()
+                await websocket.send(json.dumps({"type": "stop_buffer_success", "content": ""}))
+
+            elif parsed_message["type"] == "get_summary":
+                video_name = parsed_message["content"]
+                position_file = open(f'../object-tracker-shared/outputs/{video_name}.txt', "r")
+                video_summary = json.loads(position_file.readline().strip())
+                await websocket.send(json.dumps({"type": "video_summary", "content": video_summary}))
 
             elif parsed_message["type"] == "play":
                 reader.start(parsed_message["content"])
-                await reader.get_first_frame()
 
             elif parsed_message["type"] == "get_frames":
                 for i in range(int(parsed_message["content"])):
