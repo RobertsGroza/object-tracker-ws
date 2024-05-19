@@ -36,8 +36,8 @@ class VideoReader:
     def start(self, video_name, tracker):
         self.tracker = tracker
         self.isBuffering = True
-        self.cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video_name}.mp4')
-        self.position_file = open(f'../object-tracker-shared/{tracker_folders[tracker]}/{video_name}.txt', "r")
+        self.cap = cv2.VideoCapture(f'videos/{video_name}.mp4')
+        self.position_file = open(f'{tracker_folders[tracker]}/{video_name}.txt', "r")
         self.position_file.readline()  # Skip summary
 
     def stop(self):
@@ -93,7 +93,7 @@ async def echo(websocket):
     # Store a copy of the connected client
     print("A client just connected")
     connected.add(websocket)
-    videos = list(map(lambda el: el.split(".")[0], os.listdir("../object-tracker-shared/videos")))
+    videos = list(map(lambda el: el.split(".")[0], os.listdir("videos")))
     await websocket.send(json.dumps({"type": "video_list", "videos": videos}))
     reader = VideoReader(websocket)
 
@@ -110,7 +110,7 @@ async def echo(websocket):
             elif parsed_message["type"] == "get_summary":
                 video_name = parsed_message["video_name"]
                 position_file = open(
-                    f'../object-tracker-shared/{tracker_folders[parsed_message["tracker"]]}/{video_name}.txt', "r"
+                    f'{tracker_folders[parsed_message["tracker"]]}/{video_name}.txt', "r"
                 )
                 video_summary = json.loads(position_file.readline().strip())
                 await websocket.send(json.dumps({"type": "video_summary", "content": video_summary}))
