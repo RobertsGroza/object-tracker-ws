@@ -1,4 +1,4 @@
-{"fps": 30.0, "ids": [{"id": 16, "class": 16}, {"id": 21, "class": 16}, {"id": 31, "class": 8}, {"id": 44, "class": 16}, {"id": 57, "class": 16}, {"id": 58, "class": 16}, {"id": 64, "class": 47}]}
+{"fps": 30.0, "ids": [{"id": 16, "class": "dog"}, {"id": 21, "class": "dog"}, {"id": 31, "class": "boat"}, {"id": 44, "class": "dog"}, {"id": 57, "class": "dog"}, {"id": 58, "class": "dog"}, {"id": 64, "class": "apple"}]}
 []
 []
 []
