@@ -11,11 +11,19 @@ print("Server listening on Port " + str(PORT))
 
 # A set of connected ws clients
 connected = set()
-videos = list(map(lambda el: el.split(".")[0], os.listdir("./videos")))
+
+# Tracker map to output folders
+tracker_folders = {
+    "SORT": "sort-outputs",
+    "DEEP_SORT": "deepsort-outputs",
+    "BYTE_TRACK": "bytetrack-outputs",
+    "BYTE_TRACK_SEGMENTED": "bytetrack-seg-outputs",
+}
 
 
 class VideoReader:
     isBuffering = False
+    tracker = "SORT"  # Set SORT as default tracker
 
     def __init__(self, websocket):
         self.websocket = websocket
@@ -25,10 +33,11 @@ class VideoReader:
         self.cap = None
         self.position_file = None
 
-    def start(self, video_name):
+    def start(self, video_name, tracker):
+        self.tracker = tracker
         self.isBuffering = True
-        self.cap = cv2.VideoCapture(f'./videos/{video_name}.mp4')
-        self.position_file = open(f'./outputs/{video_name}.txt', "r")
+        self.cap = cv2.VideoCapture(f'../object-tracker-shared/videos/{video_name}.mp4')
+        self.position_file = open(f'../object-tracker-shared/{tracker_folders[tracker]}/{video_name}.txt', "r")
         self.position_file.readline()  # Skip summary
 
     def stop(self):
@@ -54,10 +63,18 @@ class VideoReader:
 
         # Process & adjust object information
         for object_position in object_positions:
-            object_position["x"] = object_position["x"] * width_scale_coefficient
-            object_position["y"] = object_position["y"] * height_scale_coefficient
-            object_position["width"] = object_position["width"] * width_scale_coefficient
-            object_position["height"] = object_position["height"] * height_scale_coefficient
+            if self.tracker == "BYTE_TRACK_SEGMENTED":
+                mask = json.loads(object_position["mask"])
+                adjusted_mask = []
+                for point in mask:
+                    object_position["mask"] = object_position["mask"]
+                    adjusted_mask.append([point[0] * width_scale_coefficient, point[1] * height_scale_coefficient])
+                object_position["mask"] = adjusted_mask
+            else:
+                object_position["x"] = object_position["x"] * width_scale_coefficient
+                object_position["y"] = object_position["y"] * height_scale_coefficient
+                object_position["width"] = object_position["width"] * width_scale_coefficient
+                object_position["height"] = object_position["height"] * height_scale_coefficient
 
         await self.websocket.send(json.dumps({
             "type": "video_frame",
@@ -76,6 +93,7 @@ async def echo(websocket):
     # Store a copy of the connected client
     print("A client just connected")
     connected.add(websocket)
+    videos = list(map(lambda el: el.split(".")[0], os.listdir("../object-tracker-shared/videos")))
     await websocket.send(json.dumps({"type": "video_list", "videos": videos}))
     reader = VideoReader(websocket)
 
@@ -87,19 +105,21 @@ async def echo(websocket):
 
             if parsed_message["type"] == "stop_buffer":
                 reader.stop()
-                await websocket.send(json.dumps({"type": "stop_buffer_success", "content": ""}))
+                await websocket.send(json.dumps({"type": "stop_buffer_success"}))
 
             elif parsed_message["type"] == "get_summary":
-                video_name = parsed_message["content"]
-                position_file = open(f'./outputs/{video_name}.txt', "r")
+                video_name = parsed_message["video_name"]
+                position_file = open(
+                    f'../object-tracker-shared/{tracker_folders[parsed_message["tracker"]]}/{video_name}.txt', "r"
+                )
                 video_summary = json.loads(position_file.readline().strip())
                 await websocket.send(json.dumps({"type": "video_summary", "content": video_summary}))
 
             elif parsed_message["type"] == "play":
-                reader.start(parsed_message["content"])
+                reader.start(parsed_message["video_name"], parsed_message["tracker"])
 
             elif parsed_message["type"] == "get_frames":
-                for i in range(int(parsed_message["content"])):
+                for i in range(int(parsed_message["count"])):
                     await reader.get_next_frame()
 
             else:
